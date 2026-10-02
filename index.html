@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>天気✕地図 連携アプリ（APIキー不要版）</title>
+    <title>天気✕地図 連携アプリ</title>
     <!-- 地図ライブラリ (Leaflet) のCSS -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <style>
         body { font-family: sans-serif; margin: 0; padding: 20px; background: #fdfdfd; }
-        #map { height: 400px; width: 100%; border-radius: 8px; margin-top: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #map { height: 450px; width: 100%; border-radius: 8px; margin-top: 10px; background: #e0e0e0; }
         .info-box { background: #eef5ff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 5px solid #007bff; }
         h1 { font-size: 1.5rem; color: #333; }
     </style>
@@ -16,44 +16,62 @@
 <body>
 
     <h1>東京の天気と地図</h1>
+    
+    <!-- 天気情報を表示するエリア（まずはベースの文字を表示） -->
     <div class="info-box">
         <h3>現在の天気予報</h3>
-        <p id="weather-text">データを読み込み中...</p>
+        <p id="weather-text">天気データを読み込んでいます...</p>
     </div>
+
+    <!-- 地図を表示するエリア -->
     <div id="map"></div>
 
     <!-- 地図ライブラリ (Leaflet) のJavaScript -->
     <script src="https://unpkg.com"></script>
     
     <script>
+        // 東京の座標
         const lat = 35.6895;
         const lon = 139.6917;
+
+        // === 🗺️ 1. 地図の表示（最優先で実行） ===
+        // 天気データの取得結果に関わらず、まず地図を画面に必ず描画します
         const map = L.map('map').setView([lat, lon], 10);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
-        const weatherUrl = 'https://jma.go.jp';
+
+        // 最初から地図に標準のピンを立てておく
+        const marker = L.marker([lat, lon]).addTo(map).bindPopup("東京地方");
+
+        // === ☀️ 2. 天気データの取得（気象庁JSON） ===
+        const weatherUrl = 'https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json';
+
         fetch(weatherUrl)
             .then(response => {
-                if (!response.ok) throw new Error('天気データの取得に失敗しました');
+                if (!response.ok) throw new Error('通信エラーが発生しました');
                 return response.json();
             })
             .then(data => {
-                // 気象庁の複雑なデータ構造から、今日の天気とエリア名を取り出す
-                const areaName = data[0].publishingOffice; // 気象庁名義
-                const targetArea = data[0].timeSeries[0].areas[0].area.name; // 「東京地方」
-                const weatherReport = data[0].timeSeries[0].areas[0].weathers[0]; // 天気内容（晴れ、曇りなど）
+                // 気象庁特有の「配列の0番目」から正しくパーツを分解して抽出
+                const forecastData = data[0];
+                const targetArea = forecastData.timeSeries[0].areas[0].area.name; // 「東京地方」
+                const weatherReport = forecastData.timeSeries[0].areas[0].weathers[0]; // 「今日の天気」
+                
+                // 画面上のテキストエリアを更新
                 document.getElementById('weather-text').innerHTML = 
-                    `<strong>${targetArea}</strong>の予報：<b>${weatherReport}</b><br><small>（データ元：${areaName}）</small>`;
-                L.marker([lat, lon]).addTo(map)
-                    .bindPopup(`<b>${targetArea}</b><br>${weatherReport}`)
-                    .openPopup();
+                    `<strong>${targetArea}</strong>の今日の予報：<b>${weatherReport}</b>`;
+
+                // 地図のピン（吹き出し）の文字を更新して自動で開く
+                marker.setPopupContent(`<b>${targetArea}</b><br>${weatherReport}`).openPopup();
             })
             .catch(error => {
-                document.getElementById('weather-text').innerText = '天気の取得エラー: ' + error.message;
-                console.error(error);
+                // 読み込みエラーが起きても、地図を消さずにエラーメッセージだけを優しく表示
+                document.getElementById('weather-text').innerText = '天気の取得に失敗しましたが、地図は正常に動作しています。';
+                console.error('詳細エラー:', error);
             });
     </script>
 </body>
 </html>
+
 
